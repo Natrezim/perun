@@ -11,7 +11,23 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 
-import cz.metacentrum.perun.core.api.*;
+import cz.metacentrum.perun.core.api.Attribute;
+import cz.metacentrum.perun.core.api.AttributesManager;
+import cz.metacentrum.perun.core.api.BeansUtils;
+import cz.metacentrum.perun.core.api.Candidate;
+import cz.metacentrum.perun.core.api.ExtSource;
+import cz.metacentrum.perun.core.api.ExtSourcesManager;
+import cz.metacentrum.perun.core.api.Group;
+import cz.metacentrum.perun.core.api.GroupsManager;
+import cz.metacentrum.perun.core.api.Member;
+import cz.metacentrum.perun.core.api.MembersManager;
+import cz.metacentrum.perun.core.api.RichMember;
+import cz.metacentrum.perun.core.api.Status;
+import cz.metacentrum.perun.core.api.User;
+import cz.metacentrum.perun.core.api.UserExtSource;
+import cz.metacentrum.perun.core.api.UsersManager;
+import cz.metacentrum.perun.core.api.Vo;
+import cz.metacentrum.perun.core.api.VosManager;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -89,6 +105,8 @@ public class MembersManagerEntryIntegrationTest extends AbstractPerunIntegration
 		g1 = perun.getGroupsManagerBl().createGroup(sess, createdVo, new Group("TESTINGGROUP1", "TESTINGGROUP1"));
 		g2 = perun.getGroupsManagerBl().createGroup(sess, createdVo, new Group("TESTINGGROUP2", "TESTINGGROUP2"));
 		g3ing1 = perun.getGroupsManagerBl().createGroup(sess, g1, new Group("TESTINGGROUP3", "TESTINGGROUP3"));
+		// add union relation
+		perun.getGroupsManagerBl().groupUnion(sess, g1, g3ing1);
 	}
 
 	@Test
@@ -187,7 +205,7 @@ public class MembersManagerEntryIntegrationTest extends AbstractPerunIntegration
 
 		List<Group> groups = new ArrayList<>(Arrays.asList(g3ing1));
 
-		//Create new locale member for puprose of this method
+		//Create new locale member for purpose of this method
 		String userFirstName = Long.toHexString(Double.doubleToLongBits(Math.random()));
 		String userLastName = Long.toHexString(Double.doubleToLongBits(Math.random()));
 		String extLogin = Long.toHexString(Double.doubleToLongBits(Math.random()));

@@ -191,9 +191,9 @@ public class VOOTMainAndFilterIntegrationTest extends AbstractVOOTTest {
 
 		//System.out.println(response);
 	}
-
+    
 	@Override
-	public void setUpBackground() throws VoExistsException, InternalErrorException, GroupExistsException, AlreadyMemberException, WrongAttributeValueException, WrongAttributeAssignmentException, WrongReferenceAttributeValueException, NotMemberOfParentGroupException, AlreadyAdminException, AttributeNotExistsException, ExtendMembershipException {
+	public void setUpBackground() throws VoExistsException, InternalErrorException, GroupExistsException, AlreadyMemberException, WrongAttributeValueException, WrongAttributeAssignmentException, WrongReferenceAttributeValueException, NotMemberOfParentGroupException, AlreadyAdminException, AttributeNotExistsException, ExtendMembershipException, GroupNotExistsException, NotGroupMemberException {
 
 		setMail(user1,"james.bond@mi6.co.uk");
 

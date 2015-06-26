@@ -98,6 +98,14 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 		}
 	};
 
+    private static final RowMapper<Pair<Integer, Integer>> GROUP_RELATIONS_MAPPER = new RowMapper<Pair<Integer, Integer>>() {
+        public Pair<Integer, Integer> mapRow(ResultSet rs, int i) throws SQLException {
+            Pair<Integer, Integer> pair = new Pair<>();
+            pair.put(rs.getInt("result_gid"), rs.getInt("operation_id"));
+            return pair;
+        }
+    };
+
 	/**
 	 * Create new instance of this class.
 	 *
@@ -113,10 +121,12 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 
 		// Check if the group already exists
 		if(group.getParentGroupId() == null) {
+			// check if TOP level group exists
 			if (1 == jdbc.queryForInt("select count('x') from groups where lower(name)=lower(?) and vo_id=? and parent_group_id IS NULL", group.getName(), vo.getId())) {
 				throw new GroupExistsException("Group [" + group.getName() + "] already exists under VO [" + vo.getShortName() + "] and has parent Group with id is [NULL]");
 			}
 		} else {
+			// check if subgroup exists under parent group
 			if (1 == jdbc.queryForInt("select count('x') from groups where lower(name)=lower(?) and vo_id=? and parent_group_id=?", group.getName(), vo.getId(), group.getParentGroupId())) {
 				throw new GroupExistsException("Group [" + group.getName() + "] already exists under VO [" + vo.getShortName() + "] and has parent Group with id [" + group.getParentGroupId() + "]");
 			}
@@ -276,11 +286,12 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 			throw new InternalErrorException(ex);
 		}
 	}
-
+	
 	public List<Member> getGroupMembers(PerunSession sess, Group group) throws InternalErrorException {
 		try {
-			return jdbc.query("select " + MembersManagerImpl.memberMappingSelectQuery + ", groups_members.membership_type as membership_type from groups_members join members on members.id=groups_members.member_id " +
-					" where groups_members.group_id=?", MembersManagerImpl.MEMBER_MAPPER, group.getId());
+			return jdbc.query("SELECT " + MembersManagerImpl.memberMappingSelectQuery + ", groups_members.membership_type AS membership_type, " +
+                    "groups_members.source_group_id AS source_group_id FROM groups_members JOIN members ON members.id=groups_members.member_id " +
+                    " WHERE groups_members.group_id=?", MembersManagerImpl.MEMBER_MAPPER, group.getId());
 		} catch (EmptyResultDataAccessException e) {
 			return new ArrayList<Member>();
 		} catch (RuntimeException e) {
@@ -297,15 +308,16 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 			}
 			parameters.addValue("statuses", statusesCodes);
 			parameters.addValue("group_id", group.getId());
+			parameters.addValue("membership_type", MembershipType.EXCLUDED.getCode());
 
 			if (excludeStatusInsteadOfIncludeStatus) {
 				// Exclude members with one of the status
-				return this.namedParameterJdbcTemplate.query("select " + MembersManagerImpl.memberMappingSelectQuery + ", groups_members.membership_type as membership_type from groups_members join members on members.id=groups_members.member_id " +
-						" where groups_members.group_id=:group_id and members.status"+Compatibility.castToInteger()+" not in (:statuses)", parameters, MembersManagerImpl.MEMBER_MAPPER);
+				return this.namedParameterJdbcTemplate.query("SELECT " + MembersManagerImpl.memberMappingSelectQuery + ", groups_members.membership_type AS membership_type FROM groups_members JOIN members ON members.id=groups_members.member_id " +
+						" WHERE groups_members.group_id=:group_id AND groups_members.membership_type!=:membership_type AND members.status" + Compatibility.castToInteger() + " NOT IN (:statuses)", parameters, MembersManagerImpl.MEMBER_MAPPER);
 			} else {
 				// Include members with one of the status
-				return this.namedParameterJdbcTemplate.query("select " + MembersManagerImpl.memberMappingSelectQuery + ", groups_members.membership_type as membership_type from groups_members join members on members.id=groups_members.member_id " +
-						" where groups_members.group_id=:group_id and members.status"+Compatibility.castToInteger()+" in (:statuses)", parameters, MembersManagerImpl.MEMBER_MAPPER);
+				return this.namedParameterJdbcTemplate.query("SELECT " + MembersManagerImpl.memberMappingSelectQuery + ", groups_members.membership_type AS membership_type FROM groups_members JOIN members ON members.id=groups_members.member_id " +
+						" WHERE groups_members.group_id=:group_id AND groups_members.membership_type!=:membership_type AND members.status" + Compatibility.castToInteger() + " IN (:statuses)", parameters, MembersManagerImpl.MEMBER_MAPPER);
 			}
 		} catch (EmptyResultDataAccessException e) {
 			return new ArrayList<Member>();
@@ -314,9 +326,21 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 		}
 	}
 
+    public List<Member> getDirectGroupMembers(PerunSession sess, Group group) throws InternalErrorException {
+        try {
+            return jdbc.query("SELECT " + MembersManagerImpl.memberMappingSelectQuery + ", groups_members.membership_type AS membership_type," +
+                    " groups_members.source_group_id AS source_group_id FROM groups_members JOIN members ON members.id=groups_members.member_id " +
+                    " WHERE groups_members.group_id=? AND groups_members.membership_type=?", MembersManagerImpl.MEMBER_MAPPER, group.getId(), MembershipType.DIRECT.getCode());
+        } catch (EmptyResultDataAccessException e) {
+            return new ArrayList<>();
+        } catch (RuntimeException e) {
+            throw new InternalErrorException(e);
+        }
+    }
+    
 	public List<Group> getGroups(PerunSession sess, Vo vo) throws InternalErrorException {
 		try {
-			return jdbc.query("select  " + groupMappingSelectQuery + " from groups where vo_id=? order by " +
+			return jdbc.query("select " + groupMappingSelectQuery + " from groups where vo_id=? order by " +
 							Compatibility.orderByBinary("groups.name" + Compatibility.castToVarchar()),
 					GROUP_MAPPER, vo.getId());
 
@@ -370,7 +394,7 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 	public Group getParentGroup(PerunSession sess, Group group) throws InternalErrorException, ParentGroupNotExistsException {
 		try  {
 			return jdbc.queryForObject("select " + groupMappingSelectQuery + " from groups where groups.id=?",
-					GROUP_MAPPER, group.getParentGroupId());
+                    GROUP_MAPPER, group.getParentGroupId());
 		} catch (EmptyResultDataAccessException e) {
 			throw new ParentGroupNotExistsException(e);
 		} catch (RuntimeException e) {
@@ -381,7 +405,7 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 	public Group getGroupByName(PerunSession sess, Vo vo, String name) throws GroupNotExistsException, InternalErrorException {
 		try {
 			return jdbc.queryForObject("select " + groupMappingSelectQuery + " from groups where groups.name=? and groups.vo_id=?",
-					GROUP_MAPPER, name, vo.getId());
+                    GROUP_MAPPER, name, vo.getId());
 		} catch (EmptyResultDataAccessException err) {
 			throw new GroupNotExistsException("Group name=" + name + ", vo id=" + vo.getId());
 		} catch (RuntimeException err) {
@@ -392,6 +416,7 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 	public Member addMember(PerunSession sess, Group group, Member member, MembershipType type, int sourceGroupId) throws InternalErrorException, AlreadyMemberException, WrongAttributeValueException, WrongReferenceAttributeValueException {
 		//TODO already member exception
 		member.setMembershipType(type);
+        member.setSourceGroupId(sourceGroupId);
 		try {
 			jdbc.update("insert into groups_members (group_id, member_id, created_by, created_at, modified_by, modified_at, created_by_uid, modified_by_uid, membership_type, source_group_id) " +
 					"values (?,?,?," + Compatibility.getSysdate() + ",?," + Compatibility.getSysdate() + ",?,?,?,?)", group.getId(),
@@ -414,7 +439,7 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 
 		try {
 			return this.namedParameterJdbcTemplate.query("select " + groupMappingSelectQuery + " from groups where groups.id in ( :ids )",
-					parameters, GROUP_MAPPER);
+                    parameters, GROUP_MAPPER);
 		} catch(EmptyResultDataAccessException ex) {
 			return new ArrayList<Group>();
 		} catch(RuntimeException ex) {
@@ -450,10 +475,10 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 	public List<Pair<Group,Resource>> getGroupResourcePairsByAttribute(PerunSession sess, Attribute attribute) throws InternalErrorException {
 		try {
 			return jdbc.query("select " + groupMappingSelectQuery + ", " + ResourcesManagerImpl.resourceMappingSelectQuery +
-					" from group_resource_attr_values " +
-					"join groups on groups.id=group_resource_attr_values.group_id " +
-					"join resources on resources.id=group_resource_attr_values.resource_id " +
-					"where group_resource_attr_values.attr_id=? and group_resource_attr_values.attr_value=?",
+							" from group_resource_attr_values " +
+							"join groups on groups.id=group_resource_attr_values.group_id " +
+							"join resources on resources.id=group_resource_attr_values.resource_id " +
+							"where group_resource_attr_values.attr_id=? and group_resource_attr_values.attr_value=?",
 					GROUP_RESOURCE_MAPPER, attribute.getId(), BeansUtils.attributeValueToString(attribute));
 		} catch (EmptyResultDataAccessException e) {
 			return new ArrayList<Pair<Group, Resource>>();
@@ -462,9 +487,11 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 		}
 	}
 
+	/* TODO not used, delete or rework?	
+	 */
 	public boolean isGroupMember(PerunSession sess, Group group, Member member) throws InternalErrorException {
 		try {
-			return 1 <= jdbc.queryForInt("select count(1) from groups_members where group_id=? and member_id=?", group.getId(), member.getId());
+			return 1 <= jdbc.queryForInt("select count(1) from groups_members where group_id=? and member_id=? and membershipType!=" + MembershipType.EXCLUDED, group.getId(), member.getId());
 		} catch (RuntimeException e) {
 			throw new InternalErrorException(e);
 		}
@@ -483,7 +510,7 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 	public void removeMember(PerunSession sess, Group group, Member member) throws InternalErrorException, NotGroupMemberException {
 		int ret;
 		try {
-			ret = jdbc.update("delete from groups_members where source_group_id=? and member_id=?", group.getId(), member.getId());
+			ret = jdbc.update("delete from groups_members where group_id=? and member_id=? and source_group_id=?", group.getId(), member.getId(), member.getSourceGroupId());
 		} catch(RuntimeException ex) {
 			throw new InternalErrorException(ex);
 		}
@@ -612,22 +639,22 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 	public List<Integer> getGroupApplicationIds(PerunSession sess, Group group) {
 		// get app ids for all applications
 		return jdbc.query("select id from application where group_id=?", new RowMapper<Integer>() {
-			@Override
-			public Integer mapRow(ResultSet rs, int arg1)
-			throws SQLException {
-			return rs.getInt("id");
-			}
-		},group.getId());
+            @Override
+            public Integer mapRow(ResultSet rs, int arg1)
+                    throws SQLException {
+                return rs.getInt("id");
+            }
+        }, group.getId());
 	}
 
 	@Override
 	public List<Pair<String, String>> getApplicationReservedLogins(Integer appId) {
 		return jdbc.query("select namespace,login from application_reserved_logins where app_id=?", new RowMapper<Pair<String, String>>() {
-			@Override
-			public Pair<String, String> mapRow(ResultSet rs, int arg1) throws SQLException {
-				return new Pair<String, String>(rs.getString("namespace"), rs.getString("login"));
-			}
-		}, appId);
+            @Override
+            public Pair<String, String> mapRow(ResultSet rs, int arg1) throws SQLException {
+                return new Pair<String, String>(rs.getString("namespace"), rs.getString("login"));
+            }
+        }, appId);
 	}
 
 	@Override
@@ -638,6 +665,32 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 		}
 	}
 
+    @Override
+    public void removeGroupRelation(PerunSession sess, Group resultGroup, Group operandGroup, int relationType) throws InternalErrorException {
+        if (0 == jdbc.update("DELETE FROM groups_groups WHERE result_gid = ? AND operand_gid = ? AND operation_id = ?",
+                resultGroup.getId(), operandGroup.getId(), relationType)) {
+            throw new InternalErrorException("There is no relation of this type between " + resultGroup + " and " + operandGroup);
+        }
+    }
+
+    @Override
+    public void removeResultGroupRelations(PerunSession sess, Group resultGroup) {
+        jdbc.update("DELETE FROM groups_groups WHERE result_gid = ?", resultGroup.getId());
+        jdbc.update("DELETE FROM groups_members WHERE group_id = ? AND membership_type != ?", resultGroup.getId(), MembershipType.DIRECT.getCode());
+    }
+
+    @Override
+	public void saveGroupRelation(PerunSession sess, Group resultGroup, Group operandGroup, int operationId) throws InternalErrorException {
+		jdbc.update("INSERT INTO groups_groups(result_gid, operand_gid, operation_id, created_at, created_by, " +
+				"modified_at, modified_by) VALUES(?,?,?," + Compatibility.getSysdate() + ",?," + Compatibility.getSysdate() + ",?)", 
+				resultGroup.getId(), operandGroup.getId(), operationId, sess.getPerunPrincipal().getActor(), sess.getPerunPrincipal().getActor());
+	}
+
+    @Override
+    public List<Integer> getRelatedGroupsIds(PerunSession sess, int groupId) throws InternalErrorException {
+        return jdbc.queryForList("SELECT result_gid FROM groups_groups WHERE operand_gid=" + groupId, Integer.class);
+    }
+
 	public int getGroupsCount(PerunSession sess) throws InternalErrorException {
 		try {
 			return jdbc.queryForInt("select count(*) from groups");
@@ -645,7 +698,7 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 			throw new InternalErrorException(ex);
 		}
 	}
-
+    
 	@Override
 	public List<Group> getGroupsWithAssignedExtSourceInVo(PerunSession sess, ExtSource source, Vo vo) throws InternalErrorException {
 		try {
@@ -657,4 +710,21 @@ public class GroupsManagerImpl implements GroupsManagerImplApi {
 			throw new InternalErrorException(e);
 		}
 	}
+
+    @Override
+    public boolean isRelationBetweenGroups(Group group1, Group group2) {
+        return 1 <= jdbc.queryForInt("SELECT count(1) FROM groups_groups WHERE (result_gid = ? AND operand_gid = ?) OR (result_gid = ? AND operand_gid = ?)",
+                group1.getId(), group2.getId(), group2.getId(), group1.getId());
+    }
+
+    @Override
+    public boolean isOneWayRelationBetweenGroups(Group resultGroup, Group operandGroup) {
+        return 1 <= jdbc.queryForInt("SELECT count(1) FROM groups_groups WHERE result_gid = ? AND operand_gid = ?",
+                resultGroup.getId(), operandGroup.getId());
+    }
+
+    @Override
+    public List<Pair<Integer, Integer>> getGroupRelations(PerunSession sess, int groupId) {
+        return jdbc.query("SELECT result_gid, operation_id FROM groups_groups WHERE operand_gid=?", GROUP_RELATIONS_MAPPER, groupId);
+    }
 }

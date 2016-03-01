@@ -261,7 +261,7 @@ public interface UsersManager {
 	 * @throws UserAlreadyRemovedException if there are no rows affected by deleting user in DB
 	 * @throws ServiceUserAlreadyRemovedException if there are no rows affected  by deleting serviceUser in DB
 	 */
-	void deleteUser(PerunSession perunSession, User user) throws InternalErrorException, UserNotExistsException, PrivilegeException, RelationExistsException, MemberAlreadyRemovedException, UserAlreadyRemovedException, ServiceUserAlreadyRemovedException;
+	void deleteUser(PerunSession perunSession, User user) throws InternalErrorException, UserNotExistsException, PrivilegeException, RelationExistsException, MemberAlreadyRemovedException, UserAlreadyRemovedException, ServiceUserAlreadyRemovedException, GroupOperationsException;
 
 	/**
 	 *  Deletes user. If forceDelete is true, then removes also associeted members.
@@ -276,7 +276,7 @@ public interface UsersManager {
 	 * @throws UserAlreadyRemovedException if there are no rows affected by deleting user in DB
 	 * @throws ServiceUserAlreadyRemovedException if there are no rows affected  by deleting serviceUser in DB
 	 */
-	void deleteUser(PerunSession perunSession, User user, boolean forceDelete) throws InternalErrorException, UserNotExistsException, PrivilegeException, RelationExistsException, MemberAlreadyRemovedException, UserAlreadyRemovedException, ServiceUserAlreadyRemovedException;
+	void deleteUser(PerunSession perunSession, User user, boolean forceDelete) throws InternalErrorException, UserNotExistsException, PrivilegeException, RelationExistsException, MemberAlreadyRemovedException, UserAlreadyRemovedException, ServiceUserAlreadyRemovedException, GroupOperationsException;
 
 	/**
 	 *  Updates users data in DB.

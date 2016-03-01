@@ -49,9 +49,10 @@ public class MembersManagerImpl implements MembersManagerImplApi {
 					rs.getString("members_created_at"), rs.getString("members_created_by"), rs.getString("members_modified_at"), rs.getString("members_modified_by"),
 					rs.getInt("members_created_by_uid") == 0 ? null : rs.getInt("members_created_by_uid"),
 					rs.getInt("members_modified_by_uid") == 0 ? null : rs.getInt("members_modified_by_uid"));
-			try{
+			try {
+				member.setSourceGroupId(rs.getInt("source_group_id"));
 				member.setMembershipType(MembershipType.getMembershipType(rs.getInt("membership_type")));
-			}catch(SQLException ex){/*member.setType(MembershipType.NOT_DEFINED); již provedeno v konstruktoru*/}
+			} catch(SQLException ex){/*member.setType(MembershipType.NOT_DEFINED); již provedeno v konstruktoru*/}
 			return member;
 		}
 	};

@@ -24,6 +24,7 @@ import cz.metacentrum.perun.core.api.RichGroup;
 import cz.metacentrum.perun.core.api.User;
 import cz.metacentrum.perun.core.api.UserExtSource;
 import cz.metacentrum.perun.core.api.Vo;
+import cz.metacentrum.perun.core.api.exceptions.GroupOperationsException;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -58,6 +59,16 @@ public class GroupsManagerEntryIntegrationTest extends AbstractPerunIntegrationT
 	final Group group21 = new Group("GroupsManagerTestGroup21","testovaci21");
 	final Group group3 = new Group("GroupsManagerTestGroup3","testovaci3");
 	final Group group4 = new Group("GroupsManagerTestGroup4","testovaci4");
+	final Group group5 = new Group("GroupsManagerTestGroup5","testovaci5");
+	final Group group6 = new Group("GroupsManagerTestGroup6","testovaci6");
+	final Group group7 = new Group("GroupsManagerTestGroup7","testovaci7");
+	final Group group8 = new Group("GroupsManagerTestGroup8","testovaci8");
+	final Group group9 = new Group("GroupsManagerTestGroup9","testovaci9");
+	final Group group10 = new Group("GroupsManagerTestGroup10","testovaci10");
+	final Group group11 = new Group("GroupsManagerTestGroup11","testovaci11");
+	final Group group12 = new Group("GroupsManagerTestGroup12","testovaci12");
+	final Group group13 = new Group("GroupsManagerTestGroup13","testovaci13");
+	final Group group14 = new Group("GroupsManagerTestGroup14","testovaci14");
 	private Vo vo;
 	private List<Attribute> attributesList = new ArrayList<>();
 
@@ -268,10 +279,214 @@ public class GroupsManagerEntryIntegrationTest extends AbstractPerunIntegrationT
 	}
 
 	@Test
-	public void trywhat(){
+	public void deleteGroupWithRelations() throws Exception {
+		System.out.println("GroupsManager.deleteGroupWithRelations");
 
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, group, group2);
+		groupsManager.createGroup(sess, group, group3);
+		groupsManager.createGroup(sess, group2, group4);
+		groupsManager.createGroup(sess, vo, group5);
+		groupsManager.createGroup(sess, vo, group6);
+		groupsManager.createGroup(sess, vo, group7);
+
+		// first add members to groups
+		Member member = setUpMember(vo);
+		Member member2 = setUpMember(vo);
+		Member member3 = setUpMember(vo);
+		Member member4 = setUpMember(vo);
+		groupsManager.addMember(sess, group4, member);
+		groupsManager.addMember(sess, group7, member2);
+		groupsManager.addMember(sess, group5, member3);
+		groupsManager.addMember(sess, group3, member4);
+
+		// then create relations between them
+		groupsManager.createGroupUnion(sess, group4, group3);
+		groupsManager.createGroupUnion(sess, group6, group4);
+		groupsManager.createGroupUnion(sess, group4, group5);
+		groupsManager.createGroupUnion(sess, group2, group7);
+
+		assertTrue(groupsManager.getGroupMembers(sess, group).size() == 4);
+		assertTrue(groupsManager.getGroupMembers(sess, group2).size() == 4);
+		assertTrue(groupsManager.getGroupMembers(sess, group3).size() == 1);
+		assertTrue(groupsManager.getGroupMembers(sess, group4).size() == 3);
+		assertTrue(groupsManager.getGroupMembers(sess, group5).size() == 1);
+		assertTrue(groupsManager.getGroupMembers(sess, group6).size() == 3);
+		assertTrue(groupsManager.getGroupMembers(sess, group7).size() == 1);
+
+		groupsManager.deleteGroup(sess, group, true);
+		
+		assertTrue(groupsManager.getGroupMembers(sess, group5).size() == 1);
+		assertTrue(groupsManager.getGroupMembers(sess, group6).size() == 0);
+		assertTrue(groupsManager.getGroupMembers(sess, group7).size() == 1);
+	}
+	
+	@Test
+	public void addAndRemoveMemberInGroupWithUnion() throws Exception {
+		System.out.println("GroupsManager.addAndRemoveMemberInGroupWithUnion");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, vo, group2);
+		groupsManager.createGroup(sess, vo, group3);
+
+		groupsManager.createGroupUnion(sess, group, group2);
+		groupsManager.createGroupUnion(sess, group2, group3);
+
+		Member member = setUpMember(vo);
+		groupsManager.addMember(sess, group3, member);
+
+		assertTrue(groupsManager.getGroupMembers(sess, group).size() == 1);
+		assertTrue(groupsManager.getGroupMembers(sess, group2).size() == 1);
+		assertTrue(groupsManager.getGroupMembers(sess, group3).size() == 1);
+		assertEquals(groupsManager.getGroupMembers(sess, group3).get(0).getId(), member.getId());
+
+		groupsManager.removeMember(sess, group3, member);
+
+		assertTrue(groupsManager.getGroupMembers(sess, group3).size() == 0);
+		assertTrue(groupsManager.getGroupMembers(sess, group2).size() == 0);
+		assertTrue(groupsManager.getGroupMembers(sess, group).size() == 0);
+
+		groupsManager.addMember(sess, group3, member);
+
+		assertTrue(groupsManager.getGroupMembers(sess, group).size() == 1);
+		assertTrue(groupsManager.getGroupMembers(sess, group2).size() == 1);
+		assertTrue(groupsManager.getGroupMembers(sess, group3).size() == 1);
+		assertEquals(groupsManager.getGroupMembers(sess, group3).get(0).getId(), member.getId());
 	}
 
+	@Test
+	public void createGroupUnion() throws Exception {
+		System.out.println("GroupsManager.createGroupUnion");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, vo, group2);
+
+		Member member = setUpMember(vo);
+		groupsManager.addMember(sess, group2, member);
+
+		groupsManager.createGroupUnion(sess, group, group2);
+
+		assertTrue(groupsManager.getGroupMembers(sess, group).size() == 1);
+	}
+
+	@Test
+	public void removeGroupUnion() throws Exception {
+		System.out.println("GroupsManager.removeGroupUnion");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, vo, group2);
+
+		Member member = setUpMember(vo);
+		groupsManager.addMember(sess, group2, member);
+
+		groupsManager.createGroupUnion(sess, group, group2);
+
+		groupsManager.removeGroupUnion(sess, group, group2);
+
+		assertTrue(groupsManager.getGroupMembers(sess, group).size() == 0);
+	}
+
+	@Test(expected=InternalErrorException.class)
+	public void createGroupUnionWhenUnionAlreadyExists() throws Exception {
+		System.out.println("GroupsManager.createGroupUnionWhenUnionAlreadyExists");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, vo, group2);
+
+		groupsManager.createGroupUnion(sess, group, group2);
+		groupsManager.createGroupUnion(sess, group, group2);
+	}
+	
+	@Test(expected=InternalErrorException.class)
+	public void createGroupRelationOnSameGroup() throws Exception {
+		System.out.println("GroupsManager.createGroupUnionOnSameGroup");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+
+		groupsManager.createGroupUnion(sess, group, group);
+	}
+
+	@Test(expected=InternalErrorException.class)
+	public void removeGroupUnionThatDoesNotExist() throws Exception {
+		System.out.println("GroupsManager.removeGroupUnionThatDoesNotExist");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, vo, group2);
+
+		groupsManager.removeGroupUnion(sess, group, group2);
+	}
+
+	@Test(expected = InternalErrorException.class)
+	public void createGroupTransitivity() throws Exception {
+		System.out.println("GroupsManager.createGroupTransitivity");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, vo, group2);
+		groupsManager.createGroup(sess, vo, group3);
+		groupsManager.createGroup(sess, vo, group4);
+
+		groupsManager.createGroupUnion(sess, group, group2);
+		groupsManager.createGroupUnion(sess, group2, group3);
+		groupsManager.createGroupUnion(sess, group3, group);
+	}
+
+	@Test(expected = GroupNotExistsException.class)
+	public void createUnionWhenGroupNotExists() throws Exception {
+		System.out.println("GroupsManager.createUnionWhenGroupNotExists");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+
+		groupsManager.createGroupUnion(sess, group, group2);
+	}
+
+	@Test(expected = InternalErrorException.class)
+	public void deleteUnionWithSwitchedGroups() throws Exception {
+		System.out.println("GroupsManager.deleteUnionWithSwitchedGroups");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, vo, group2);
+
+		groupsManager.createGroupUnion(sess, group, group2);
+
+		groupsManager.removeGroupUnion(sess, group2, group);
+	}
+
+	@Test(expected = GroupOperationsException.class)
+	public void deleteUnionBetweenGroupsInHierarchy() throws Exception {
+		System.out.println("GroupsManager.deleteUnionBetweenGroupsInHierarchy");
+		
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, group, group2);
+		
+		assertTrue(groupsManagerBl.isRelationBetweenGroups(group, group2));
+		
+		groupsManager.removeGroupUnion(sess, group, group2);
+	}
+
+	@Test(expected = InternalErrorException.class)
+	public void createUnionBetweenGroupsInHierarchy() throws Exception {
+		System.out.println("GroupsManager.createUnionBetweenGroupsInHierarchy");
+
+		vo = setUpVo();
+		groupsManager.createGroup(sess, vo, group);
+		groupsManager.createGroup(sess, group, group2);
+
+		assertTrue(groupsManagerBl.isRelationBetweenGroups(group, group2));
+
+		groupsManager.createGroupUnion(sess, group, group2);
+	}
+	
 	@Test (expected=RelationExistsException.class)
 	public void deleteGroupWhenContainsMember() throws Exception {
 		System.out.println(CLASS_NAME + "deleteGroupWhenContainsMember");

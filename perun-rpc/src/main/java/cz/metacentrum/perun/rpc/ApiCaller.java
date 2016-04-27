@@ -6,6 +6,7 @@ import java.util.Map;
 
 import javax.servlet.ServletContext;
 
+import cz.metacentrum.perun.core.api.OIDCManager;
 import cz.metacentrum.perun.registrar.model.Application;
 import cz.metacentrum.perun.voot.VOOT;
 import org.springframework.web.context.support.WebApplicationContextUtils;
@@ -89,6 +90,7 @@ public class ApiCaller {
 	private RegistrarManager registrarManager;
 	private PerunNotifNotificationManager notificationManager;
 	private VOOT vootManager = null;
+	private OIDCManager oidcManager = null;
 
 	private final static String RPCPRINCIPAL = "perunRpc";
 
@@ -198,6 +200,13 @@ public class ApiCaller {
 			ownersManager = rpcSession.getPerun().getOwnersManager();
 		}
 		return ownersManager;
+	}
+
+	public OIDCManager getOidcManager() {
+		if (oidcManager == null) {
+			oidcManager = rpcSession.getPerun().getOidcManager();
+		}
+		return oidcManager;
 	}
 
 	public GeneralServiceManager getGeneralServiceManager() {

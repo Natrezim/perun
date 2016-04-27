@@ -17,6 +17,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import cz.metacentrum.perun.core.api.Perun;
+import cz.metacentrum.perun.core.api.PerunSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +39,7 @@ import cz.metacentrum.perun.rpc.deserializer.UrlDeserializer;
 import cz.metacentrum.perun.rpc.serializer.JsonSerializer;
 import cz.metacentrum.perun.rpc.serializer.JsonSerializerJSONP;
 import cz.metacentrum.perun.rpc.serializer.Serializer;
+import org.springframework.web.context.support.WebApplicationContextUtils;
 
 import java.sql.Timestamp;
 
@@ -59,6 +62,7 @@ public class Api extends HttpServlet {
 	private final static String PERUNSTATISTICS = "getPerunStatistics";
 	private final static Logger log = LoggerFactory.getLogger(ApiCaller.class);
 	private final static String VOOTMANAGER = "vootManager";
+	private final static String OICMANAGER = "oicManager";
 	private final static int timeToLiveWhenDone = 60 * 1000; // in milisec, if requests is done more than this time, remove it from list
 
 	@Override
@@ -457,9 +461,24 @@ public class Api extends HttpServlet {
 				}
 
 			}
+			
+			// process access token
+			if (OICMANAGER.equals(manager)) {
 
+				// validate token and get userId from it
+//				int userId = caller.getOidcManager().introspectToken(des.readString("access_token"));
+				
+				// TODO Can I do this???
+				Perun perun = WebApplicationContextUtils.getWebApplicationContext(getServletContext()).getBean("perun", Perun.class);
+				PerunPrincipal rpcPrincipal = new PerunPrincipal("perunRpc", ExtSourcesManager.EXTSOURCE_NAME_INTERNAL, ExtSourcesManager.EXTSOURCE_INTERNAL);
+				PerunSession rpcSession = perun.getPerunSession(rpcPrincipal);
+				
+				result = caller.getOidcManager().getUserInfo(rpcSession, des.readString("access_token"));
+				ser.write(result);
+			}
+			
 			// Process request and sent the response back
-			if (VOOTMANAGER.equals(manager)) {
+			else if (VOOTMANAGER.equals(manager)) {
 				// Process VOOT protocol
 				result = caller.getVOOTManager().process(caller.getSession(), method, des.readAll());
 				if (perunRequest != null) perunRequest.setResult(result);

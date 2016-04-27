@@ -120,6 +120,12 @@ public interface Perun {
 	public SecurityTeamsManager getSecurityTeamsManager();
 
 	/**
+	 * Gets a Oidc manager.
+	 * @return Oidc manager
+	 */
+	OIDCManager getOidcManager();
+
+	/**
 	 * Gets a Searcher.
 	 * @return Searcher
 	 */

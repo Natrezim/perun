@@ -239,4 +239,10 @@ public interface PerunBl extends Perun {
 	 * @return  ModulesUtilsBl
 	 */
 	public ModulesUtilsBl getModulesUtilsBl();
+	
+	/**
+	 * Gets a Oidc manager.
+	 * @return Oidc manager
+	 */
+	OIDCManagerBl getOidcManagerBl();
 }

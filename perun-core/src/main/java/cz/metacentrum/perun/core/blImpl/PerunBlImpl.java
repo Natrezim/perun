@@ -1,5 +1,7 @@
 package cz.metacentrum.perun.core.blImpl;
 
+import cz.metacentrum.perun.core.api.OIDCManager;
+import cz.metacentrum.perun.core.bl.OIDCManagerBl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
@@ -71,6 +73,7 @@ public class PerunBlImpl implements PerunBl {
 	private AuditMessagesManager auditMessagesManager = null;
 	private RTMessagesManager rtMessagesManager = null;
 	private SecurityTeamsManager securityTeamsManager = null;
+	private OIDCManager oidcManager = null;
 	private Searcher searcher = null;
 
 	private ModulesUtilsBl modulesUtilsBl = null;
@@ -89,6 +92,7 @@ public class PerunBlImpl implements PerunBl {
 	private RTMessagesManagerBl rtMessagesManagerBl = null;
 	private SecurityTeamsManagerBl securityTeamsManagerBl = null;
 	private AuthzResolverBl authzResolverBl = null;
+	private OIDCManagerBl oidcManagerBl = null;
 	private SearcherBl searcherBl = null;
 
 	private Auditer auditer = null;
@@ -409,6 +413,24 @@ public class PerunBlImpl implements PerunBl {
 	}
 
 	@Override
+	public OIDCManager getOidcManager() {
+		return oidcManager;
+	}
+
+	public void setOidcManager(OIDCManager oidcManager) {
+		this.oidcManager = oidcManager;
+	}
+
+	@Override
+	public OIDCManagerBl getOidcManagerBl() {
+		return oidcManagerBl;
+	}
+
+	public void setOidcManagerBl(OIDCManagerBl oidcManagerBl) {
+		this.oidcManagerBl = oidcManagerBl;
+	}
+
+	@Override
 	public boolean isPerunReadOnly() {
 		return BeansUtils.isPerunReadOnly();
 	}
@@ -482,6 +504,7 @@ public class PerunBlImpl implements PerunBl {
 			"attributesManager='" + attributesManager + "', " +
 			"rtMessagesManager='" + rtMessagesManager + "', " +
 			"securityTeamsManager='" + securityTeamsManager + "', " +
+			"oidcManager='" + oidcManager + "', " +
 			"searcher='" + searcher + "', " +
 			"servicesManager='" + servicesManager + "']";
 	}

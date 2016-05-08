@@ -10,15 +10,10 @@ import cz.metacentrum.perun.core.bl.PerunBl;
 import org.apache.commons.codec.binary.Base64;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonParser;
+import org.codehaus.jackson.annotate.JsonIgnore;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.jose4j.jwk.JsonWebKey;
 
-import org.jose4j.jwt.JwtClaims;
-import org.jose4j.jwt.MalformedClaimException;
 import org.jose4j.jwt.consumer.InvalidJwtException;
-import org.jose4j.jwt.consumer.JwtConsumer;
-import org.jose4j.jwt.consumer.JwtConsumerBuilder;
-import org.jose4j.lang.JoseException;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -43,11 +38,10 @@ import java.util.Objects;
  */
 public class OIDCManagerBlImpl implements OIDCManagerBl {
 
+//	TODO do some logs
 	private final static Logger log = LoggerFactory.getLogger(OIDCManagerBlImpl.class);
 
-	public static final String DISCOVERY_URL = "https://perun-dev.meta.zcu.cz/oic-manager/.well-known/openid-configuration";
-	
-	private static final String DISCOVERY_DOCUMENT_MOCK = "{\"request_parameter_supported\":true,\"id_token_encryption_alg_values_supported\":[\"RSA-OAEP\",\"RSA1_5\",\"RSA-OAEP-256\"],\"registration_endpoint\":\"https://perun-dev.meta.zcu.cz/oic-manager/register\",\"userinfo_signing_alg_values_supported\":[\"HS256\",\"HS384\",\"HS512\",\"RS256\",\"RS384\",\"RS512\",\"ES256\",\"ES384\",\"ES512\",\"PS256\",\"PS384\",\"PS512\"],\"token_endpoint\":\"https://perun-dev.meta.zcu.cz/oic-manager/token\",\"request_uri_parameter_supported\":false,\"request_object_encryption_enc_values_supported\":[\"A192CBC-HS384\",\"A256CBC+HS512\",\"A192GCM\",\"A128CBC+HS256\",\"A256CBC-HS512\",\"A256GCM\",\"A128GCM\",\"A128CBC-HS256\"],\"token_endpoint_auth_methods_supported\":[\"client_secret_post\",\"client_secret_basic\",\"client_secret_jwt\",\"private_key_jwt\",\"none\"],\"userinfo_encryption_alg_values_supported\":[\"RSA-OAEP\",\"RSA1_5\",\"RSA-OAEP-256\"],\"subject_types_supported\":[\"public\",\"pairwise\"],\"id_token_encryption_enc_values_supported\":[\"A192CBC-HS384\",\"A256CBC+HS512\",\"A192GCM\",\"A128CBC+HS256\",\"A256CBC-HS512\",\"A256GCM\",\"A128GCM\",\"A128CBC-HS256\"],\"claims_parameter_supported\":false,\"jwks_uri\":\"https://perun-dev.meta.zcu.cz/oic-manager/jwk\",\"id_token_signing_alg_values_supported\":[\"HS256\",\"HS384\",\"HS512\",\"RS256\",\"RS384\",\"RS512\",\"ES256\",\"ES384\",\"ES512\",\"PS256\",\"PS384\",\"PS512\",\"none\"],\"authorization_endpoint\":\"https://perun-dev.meta.zcu.cz/oic-manager/authorize\",\"require_request_uri_registration\":false,\"introspection_endpoint\":\"https://perun-dev.meta.zcu.cz/oic-manager/introspect\",\"request_object_encryption_alg_values_supported\":[\"RSA-OAEP\",\"RSA1_5\",\"RSA-OAEP-256\"],\"service_documentation\":\"https://perun-dev.meta.zcu.cz/oic-manager/about\",\"response_types_supported\":[\"code\",\"token\"],\"token_endpoint_auth_signing_alg_values_supported\":[\"HS256\",\"HS384\",\"HS512\",\"RS256\",\"RS384\",\"RS512\",\"ES256\",\"ES384\",\"ES512\",\"PS256\",\"PS384\",\"PS512\"],\"revocation_endpoint\":\"https://perun-dev.meta.zcu.cz/oic-manager/revoke\",\"request_object_signing_alg_values_supported\":[\"HS256\",\"HS384\",\"HS512\",\"RS256\",\"RS384\",\"RS512\",\"ES256\",\"ES384\",\"ES512\",\"PS256\",\"PS384\",\"PS512\"],\"claim_types_supported\":[\"normal\"],\"grant_types_supported\":[\"authorization_code\",\"implicit\",\"urn:ietf:params:oauth:grant-type:jwt-bearer\",\"client_credentials\",\"urn:ietf:params:oauth:grant_type:redelegate\"],\"scopes_supported\":[\"openid\",\"profile\",\"email\",\"address\",\"phone\",\"offline_access\"],\"userinfo_endpoint\":\"https://perun-dev.meta.zcu.cz/oic-manager/userinfo\",\"userinfo_encryption_enc_values_supported\":[\"A192CBC-HS384\",\"A256CBC+HS512\",\"A192GCM\",\"A128CBC+HS256\",\"A256CBC-HS512\",\"A256GCM\",\"A128GCM\",\"A128CBC-HS256\"],\"op_tos_uri\":\"https://perun-dev.meta.zcu.cz/oic-manager/about\",\"issuer\":\"https://perun-dev.meta.zcu.cz/oic-manager/\",\"op_policy_uri\":\"https://perun-dev.meta.zcu.cz/oic-manager/about\",\"claims_supported\":[\"sub\",\"name\",\"preferred_username\",\"given_name\",\"family_name\",\"middle_name\",\"nickname\",\"profile\",\"picture\",\"website\",\"gender\",\"zoneinfo\",\"locale\",\"updated_at\",\"birthdate\",\"email\",\"email_verified\",\"phone_number\",\"phone_number_verified\",\"address\"]}";
+	private static final String DISCOVERY_URL = "https://perun-dev.meta.zcu.cz/oic-manager/.well-known/openid-configuration";
 
 	private PerunBl perunBl;
 	
@@ -57,12 +51,12 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 	}
 
 	@Override
-	public String getUserInfo(PerunSession perunSession, String at) throws JSONException, InvalidJwtException, IOException, UserNotExistsException, InternalErrorException {
+	public Map<String, Object> getUserInfo(PerunSession perunSession, String at) throws JSONException, InvalidJwtException, IOException, UserNotExistsException, InternalErrorException {
 		Map<String, Object> userinfo = new HashMap<>();
 		
 		// validate token
 		IntrospectionResponse response = introspectToken(at);
-		List<String> scopes = response.getScopes();
+		List<String> scopes = response.getScope();
 				
 		User user = perunBl.getUsersManagerBl().getUserById(perunSession, response.getSub());
 		List<Attribute> attributes = perunBl.getAttributesManagerBl().getAttributes(perunSession, user);
@@ -106,56 +100,7 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 			}
 		}
 		
-		JSONObject json = new JSONObject(userinfo);
-		
-		return json.toString();
-	}
-
-	
-	
-	@Override
-	public int validateToken(String at) throws JoseException, JSONException, InvalidJwtException, MalformedClaimException {
-		// A JSON Web Key (JWK) is a JavaScript Object Notation (JSON) data structure that represents a
-		// cryptographic key (often but not always a public key). A JSON Web Key Set (JWK Set) document
-		// is a JSON data structure for representing one or more JSON Web Keys (JWK). A JWK Set might,
-		// for example, be obtained from an HTTPS endpoint controlled by the signer but this example
-		// presumes the JWK Set JSONhas already been acquired by some secure/trusted means.
-		// TODO: obtain from discovery document
-		String jsonWebKeySetJson = "{" +
-				"\"alg\":\"RSA256\"," +
-				"\"e\":\"AQAB\"," +
-				"\"kty\":\"RSA\"," +
-				"\"kid\":\"perun\"" +
-				"\"n\":\"iHmFhDaMkPXwyOZoF7C5NYnicXSDdwuo-Av2ZJ74fHqrrtFysv6FT2qAOu9YvBzyCJCWjIOPkanIBv1sLR9zKa93RGiSTEUuasJXAg7Qf4zUHArGIrkuWagFTJWXNQlwTISLsINNZtHs1hYuAAi81jDe_TEf0t_3dgTtsKcNElIgy3GpS00WafggmcmIYUE5Dh0fWDqFltaxvXQ_a76-RaQ9dw2qKSxEC2ABjwFYixH_AvZkjBj7Utlx9NGWg4VheZAFJduDpveMNIUnqa5MIisER0Hb0F8klKBJsYdmPHxgzFkfyoHI6v42saGlGjefV4OnvMLZka8JhgJyR6zcuQ\"," +
-				"}";
-		
-		// Create jwk object
-		JsonWebKey jwk = JsonWebKey.Factory.newJwk(jsonWebKeySetJson);
-
-		// Use JwtConsumerBuilder to construct an appropriate JwtConsumer, which will
-		// be used to validate and process the JWT.
-		// The specific validation requirements for a JWT are context dependent, however,
-		// it typically advisable to require a expiration time, a trusted issuer, and
-		// and audience that identifies your system as the intended recipient.
-		// If the JWT is encrypted too, you need only provide a decryption key or
-		// decryption key resolver to the builder.
-		JwtConsumer jwtConsumer = new JwtConsumerBuilder()
-				.setRequireExpirationTime() // the JWT must have an expiration time
-				.setAllowedClockSkewInSeconds(30) // allow some leeway in validating time based claims to account for clock skew
-				.setRequireSubject() // the JWT must have a subject claim
-				// TODO: get it from discovery document
-				.setExpectedIssuer("https://perun-dev.meta.zcu.cz/oic-manager/") // whom the JWT needs to have been issued by
-//				.setExpectedAudience("Audience") // to whom the JWT is intended for
-				.setVerificationKey(jwk.getKey()) // verify the signature with the public key
-				.build(); // create the JwtConsumer instance
-
-		//  Validate the JWT and process it to the Claims
-		JwtClaims jwtClaims = jwtConsumer.processToClaims(at);
-		
-		// do the token validation?
-		log.debug(jwtClaims.toJson());
-		
-		return Integer.parseInt(jwtClaims.getSubject());
+		return userinfo;
 	}
 
 	/**
@@ -169,28 +114,28 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 	 */
 	private IntrospectionResponse introspectToken(String at) throws IOException, JSONException, InvalidJwtException {
 		
+		// TODO move it somewhere else 
 		// get the discovery document
 		fetchDiscoveryDocument();
-		
-//		List<String> scopes = new ArrayList<>();
 
 //		================================================================================================================
 //		MOCK THE DISCOVERY DOCUMENT
-		discoveryDocument = new JSONObject(DISCOVERY_DOCUMENT_MOCK);
+//		discoveryDocument = new JSONObject(DISCOVERY_DOCUMENT_MOCK);
 //		================================================================================================================
-
-		log.debug("Hi reader. I am before introspect endpoint.");
-		URL introspectionEndpoint = new URL(discoveryDocument.getString("introspection_endpoint") + "token=" + at);
+		
+		URL introspectionEndpoint = new URL(discoveryDocument.getString("introspection_endpoint") + "?token=" + at);
 		URLConnection urlConnection = introspectionEndpoint.openConnection();
 		
 //		============================================================================================================
 //		CLIENT SECRET
+//		TODO move this into config file
 		String client_id = "test-page";
 		String client_secret = "tajnasprava";
 		String enc = client_id + ":" + client_secret;
 		enc = Base64.encodeBase64String(enc.getBytes());
-//			============================================================================================================
-		
+		// java bug
+		enc = enc.replaceAll("\n", "");
+//		============================================================================================================
 		
 		urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
 		urlConnection.setRequestProperty("Authorization", "Basic " + enc);
@@ -200,51 +145,15 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 		JsonFactory f = new JsonFactory();
 		JsonParser jp = f.createJsonParser(isr);
 		jp.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, true);
-
+		
 		ObjectMapper mapper = new ObjectMapper();
 		IntrospectionResponse response = mapper.readValue(jp, IntrospectionResponse.class);
-		
-//		// return JsonToken.START_OBJECT
-//		jp.nextToken();
-//		while (jp.nextToken() != JsonToken.END_OBJECT) {
-//			String fieldName = jp.getCurrentName();
-//			jp.nextToken(); // move to value
-//			// active
-//			if (fieldName.equals("active")) {
-//				response.setActive(jp.getBooleanValue());
-//				if (!response.isActive()) {
-//					throw new InvalidJwtException("Token in not valid.");
-//				}
-//			}
-//			// scopes
-//			if (fieldName.equals("scope")) {
-//				String tokenScope = jp.getText();
-//				scopes = Arrays.asList(tokenScope.split(" "));
-//				if (!scopes.contains("openid")) {
-//					throw new InvalidJwtException("Openid scope is missing.");
-//				}
-//			}
-//			// client_id
-//			if (fieldName.equals("client_id")) {
-//				String cid = jp.getText();
-//				if (!cid.equals(client_id)) {
-//					throw new InvalidJwtException("Client_ids do not match.");
-//				}
-//			}
-//			// sub
-//			if (fieldName.equals("sub")) {
-//				int sub = jp.getIntValue();
-//				if (sub <= 0) {
-//					throw new InvalidJwtException("Invalid sub.");
-//				}
-//			}
-//			
-//		}	
 
+		// parse and validate token
 		if (!response.isActive()) {
 			throw new InvalidJwtException("Token in not valid.");
 		}
-		if (!response.getScopes().contains("openid")) {
+		if (!response.getScope().contains("openid")) {
 			throw new InvalidJwtException("Openid scope is missing.");
 		}
 		if (!response.getClient_id().equals(client_id)) {
@@ -264,13 +173,9 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 	 * @throws IOException while storing response from {@link InputStreamReader} 
 	 */
 	private void fetchDiscoveryDocument() throws JSONException, IOException {
-		log.debug("Hi reader. I am at fetch document method.");
-//		CookieHandler.setDefault(new CookieManager());
 		URL url = new URL(DISCOVERY_URL);
 		URLConnection urlConnection = url.openConnection();
-
-		// it should be without credentials
-//			urlConnection.setRequestProperty("Authorization", "Basic bmF0cmV6aW06TkB0cmV6MU0=");
+		
 		InputStream is = urlConnection.getInputStream();
 		InputStreamReader isr = new InputStreamReader(is);
 
@@ -280,10 +185,7 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 		while ((numCharsRead = isr.read(charArray)) > 0) {
 			sb.append(charArray, 0, numCharsRead);
 		}
-
-		// TODO remove log
-		log.debug("DISCOVERY DOCUMENT = " + sb.toString());
-
+		
 		discoveryDocument = new JSONObject(sb.toString());
 	}
 	
@@ -300,16 +202,24 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 	 */
 	private static class IntrospectionResponse {
 		private boolean active;
-		private List<String> scopes;
+		private List<String> scope;
+		@JsonIgnore
+		private String expires_at;
+		@JsonIgnore
+		private int exp;
 		private int sub;
+		@JsonIgnore
+		private String user_id;
 		private String client_id;
+		@JsonIgnore
+		private String token_type;
 
 		public IntrospectionResponse() {
 		}
 
-		public IntrospectionResponse(boolean active, List<String> scopes, int sub, String client_id) {
+		public IntrospectionResponse(boolean active, List<String> scope, int sub, String client_id) {
 			this.active = active;
-			this.scopes = scopes;
+			this.scope = scope;
 			this.sub = sub;
 			this.client_id = client_id;
 		}
@@ -322,16 +232,16 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 			this.active = active;
 		}
 
-		public List<String> getScopes() {
-			return scopes;
+		public List<String> getScope() {
+			return scope;
 		}
 
 		/**
 		 * Takes string of scopes separated by spaces ' '.
-		 * @param scopes string containing scopes
+		 * @param scope string containing scopes
 		 */
-		public void setScopes(String scopes) {
-			this.scopes = Arrays.asList(scopes.split(" "));
+		public void setScope(String scope) {
+			this.scope = Arrays.asList(scope.split(" "));
 		}
 
 		public int getSub() {

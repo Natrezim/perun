@@ -7,12 +7,11 @@ import cz.metacentrum.perun.core.api.exceptions.UserNotExistsException;
 import cz.metacentrum.perun.core.bl.OIDCManagerBl;
 import cz.metacentrum.perun.core.bl.PerunBl;
 import cz.metacentrum.perun.core.impl.Utils;
-import org.jose4j.jwt.MalformedClaimException;
 import org.jose4j.jwt.consumer.InvalidJwtException;
-import org.jose4j.lang.JoseException;
 import org.json.JSONException;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Created on 24. 4. 2016.
@@ -32,20 +31,10 @@ public class OIDCManagerEntry implements OIDCManager {
 	}
 
 	@Override
-	public String getUserInfo(PerunSession perunSession, String at) throws InternalErrorException, UserNotExistsException, InvalidJwtException, JSONException, IOException {
+	public Map<String, Object> getUserInfo(PerunSession perunSession, String at) throws InternalErrorException, UserNotExistsException, InvalidJwtException, JSONException, IOException {
 		Utils.notNull(perunSession, "perunSession");
 		return oidcManagerBl.getUserInfo(perunSession, at);
 	}
-
-	@Override
-	public int validateToken(String at) throws JoseException, JSONException, MalformedClaimException, InvalidJwtException {
-		return oidcManagerBl.validateToken(at);
-	}
-
-//	@Override
-//	public int introspectToken(String at) throws JoseException, JSONException, MalformedClaimException, InvalidJwtException {
-//		return oidcManagerBl.introspectToken(at);
-//	}
 
 	public PerunBl getPerunBl() {
 		return perunBl;

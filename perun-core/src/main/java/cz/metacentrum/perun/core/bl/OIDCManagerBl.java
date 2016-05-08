@@ -3,14 +3,13 @@ package cz.metacentrum.perun.core.bl;
 import cz.metacentrum.perun.core.api.PerunSession;
 import cz.metacentrum.perun.core.api.exceptions.InternalErrorException;
 import cz.metacentrum.perun.core.api.exceptions.UserNotExistsException;
-import org.jose4j.jwt.MalformedClaimException;
 import org.jose4j.jwt.consumer.InvalidJwtException;
-import org.jose4j.lang.JoseException;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Map;
 
 /**
  * Created on 24. 4. 2016.
@@ -31,19 +30,5 @@ public interface OIDCManagerBl {
 	 * @throws InvalidJwtException when token is invalid
 	 * @throws IOException while storing response from {@link InputStreamReader}
 	 */
-	String getUserInfo(PerunSession perunSession, String at) throws JSONException, InvalidJwtException, IOException, UserNotExistsException, InternalErrorException;
-
-	/**
-	 * Validate token localy.
-	 * @param at access_token
-	 * @return sub claim of validated token
-	 * 
-	 * @throws JoseException
-	 * @throws JSONException
-	 * @throws InvalidJwtException
-	 * @throws MalformedClaimException
-	 */
-	@Deprecated
-	int validateToken(String at) throws JoseException, JSONException, InvalidJwtException, MalformedClaimException;
-//	int introspectToken(String at) throws JoseException, JSONException, InvalidJwtException, MalformedClaimException;
+	Map<String, Object> getUserInfo(PerunSession perunSession, String at) throws JSONException, InvalidJwtException, IOException, UserNotExistsException, InternalErrorException;
 }

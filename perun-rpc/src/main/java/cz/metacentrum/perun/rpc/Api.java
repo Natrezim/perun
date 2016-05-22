@@ -463,18 +463,28 @@ public class Api extends HttpServlet {
 			}
 			
 			// process access token
-			if (OICMANAGER.equals(manager)) {
-
-				// validate token and get userId from it
-//				int userId = caller.getOidcManager().introspectToken(des.readString("access_token"));
-				
-				// TODO Can I do this???
+			if (OICMANAGER.equals(manager)) {				
+				// set system principal
 				Perun perun = WebApplicationContextUtils.getWebApplicationContext(getServletContext()).getBean("perun", Perun.class);
 				PerunPrincipal rpcPrincipal = new PerunPrincipal("perunRpc", ExtSourcesManager.EXTSOURCE_NAME_INTERNAL, ExtSourcesManager.EXTSOURCE_INTERNAL);
 				PerunSession rpcSession = perun.getPerunSession(rpcPrincipal);
 				
-				result = caller.getOidcManager().getUserInfo(rpcSession, des.readString("access_token"));
-				ser.write(result);
+				// extract token from authentication header
+				final String authorization = req.getHeader("Authorization");
+				String token;
+				if (authorization != null && authorization.startsWith("Bearer ")) {
+					token = authorization.substring("Bearer ".length());
+					log.debug("Using token from authentication header.");
+					// call the userinfo method with received access_token from authorization header
+					result = caller.getOidcManager().getUserInfo(rpcSession, token);
+					ser.write(result);
+				} else {
+					// get access_token from url parameters
+					// call the userinfo method with received access_token
+					log.debug("Using token from URL params.");
+					result = caller.getOidcManager().getUserInfo(rpcSession, des.readString("access_token"));
+					ser.write(result);
+				}
 			}
 			
 			// Process request and sent the response back

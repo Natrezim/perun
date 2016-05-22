@@ -2,17 +2,15 @@ package cz.metacentrum.perun.core.bl;
 
 import cz.metacentrum.perun.core.api.PerunSession;
 import cz.metacentrum.perun.core.api.exceptions.InternalErrorException;
+import cz.metacentrum.perun.core.api.exceptions.InvalidTokenException;
 import cz.metacentrum.perun.core.api.exceptions.UserNotExistsException;
-import org.jose4j.jwt.consumer.InvalidJwtException;
-import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Map;
 
 /**
- * Created on 24. 4. 2016.
+ * OIDC manager business logic interface.
  *
  * @author Oliver Mrázik
  */
@@ -24,11 +22,11 @@ public interface OIDCManagerBl {
 	 * @param at access_token
 	 * @return JSON claims about user
 	 *
-	 * @throws InternalErrorException when something happens inside Perun while fetching user information
+	 * @throws InternalErrorException when something happens inside Perun while fetching user information or
+	 * 	while transforming String into {@link JSONObject} or 
+	 * 	while storing response from {@link InputStreamReader}
 	 * @throws UserNotExistsException when user not exist for given id
-	 * @throws JSONException while transforming String into {@link JSONObject}
-	 * @throws InvalidJwtException when token is invalid
-	 * @throws IOException while storing response from {@link InputStreamReader}
+	 * @throws InvalidTokenException when token is invalid
 	 */
-	Map<String, Object> getUserInfo(PerunSession perunSession, String at) throws JSONException, InvalidJwtException, IOException, UserNotExistsException, InternalErrorException;
+	Map<String, Object> getUserInfo(PerunSession perunSession, String at) throws UserNotExistsException, InternalErrorException, InvalidTokenException;
 }

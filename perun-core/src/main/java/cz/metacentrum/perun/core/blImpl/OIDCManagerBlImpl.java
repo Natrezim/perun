@@ -1,9 +1,11 @@
 package cz.metacentrum.perun.core.blImpl;
 
 import cz.metacentrum.perun.core.api.Attribute;
+import cz.metacentrum.perun.core.api.BeansUtils;
 import cz.metacentrum.perun.core.api.PerunSession;
 import cz.metacentrum.perun.core.api.User;
 import cz.metacentrum.perun.core.api.exceptions.InternalErrorException;
+import cz.metacentrum.perun.core.api.exceptions.InvalidTokenException;
 import cz.metacentrum.perun.core.api.exceptions.UserNotExistsException;
 import cz.metacentrum.perun.core.bl.OIDCManagerBl;
 import cz.metacentrum.perun.core.bl.PerunBl;
@@ -13,7 +15,6 @@ import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.annotate.JsonIgnore;
 import org.codehaus.jackson.map.ObjectMapper;
 
-import org.jose4j.jwt.consumer.InvalidJwtException;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -24,21 +25,18 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.net.URLConnection;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
- * Created on 24. 4. 2016.
+ * OIDC manager business logic implementation.
  *
  * @author Oliver Mrázik
  */
 public class OIDCManagerBlImpl implements OIDCManagerBl {
-
-//	TODO do some logs
+	
 	private final static Logger log = LoggerFactory.getLogger(OIDCManagerBlImpl.class);
 
 	private static final String DISCOVERY_URL = "https://perun-dev.meta.zcu.cz/oic-manager/.well-known/openid-configuration";
@@ -47,16 +45,23 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 	
 	private JSONObject discoveryDocument;
 	
-	public OIDCManagerBlImpl() {
+	public OIDCManagerBlImpl() throws InternalErrorException {
+		// load a discovery document
+		fetchDiscoveryDocument();
 	}
 
 	@Override
-	public Map<String, Object> getUserInfo(PerunSession perunSession, String at) throws JSONException, InvalidJwtException, IOException, UserNotExistsException, InternalErrorException {
+	public Map<String, Object> getUserInfo(PerunSession perunSession, String at) throws UserNotExistsException, InternalErrorException, InvalidTokenException {
+		log.debug("Starting userinfo flow.");
 		Map<String, Object> userinfo = new HashMap<>();
 		
 		// validate token
 		IntrospectionResponse response = introspectToken(at);
+		if (response == null) {
+			throw new InvalidTokenException("No response from introspection endpoint");
+		}
 		List<String> scopes = response.getScope();
+		log.debug("Requested scopes: ['{}']", scopes);
 				
 		User user = perunBl.getUsersManagerBl().getUserById(perunSession, response.getSub());
 		List<Attribute> attributes = perunBl.getAttributesManagerBl().getAttributes(perunSession, user);
@@ -78,28 +83,20 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 			} else if (a.getFriendlyName().equals("middleName") && scopes.contains("profile")) {
 				userinfo.put("middle_name", a.getValue());
 
-			} else if (a.getFriendlyName().equals("eduPersonPrincipalNames") && scopes.contains("profile")) {
-				if (Objects.equals(a.getType(), "java.util.ArrayList") && a.getValue() instanceof ArrayList) {
-					userinfo.put("preffered_username", ((ArrayList) a.getValue()).get(0));
-				}
-
 			} else if (a.getFriendlyName().equals("preferredMail") && scopes.contains("email")) {
 				userinfo.put("email", a.getValue());
 				userinfo.put("email_verified", true);
 
 			} else if (a.getFriendlyName().equals("timezone") && scopes.contains("profile")) {
 				userinfo.put("zoneinfo", a.getValue());
-
-			} else if (a.getFriendlyName().equals("phone") && scopes.contains("phone")) {
-				userinfo.put("phone_number", a.getValue());
-				userinfo.put("phone_number_verified", true);
-
+				
 			} else if (a.getFriendlyName().equals("preferredLanguage") && scopes.contains("profile")) {
 				userinfo.put("locale", a.getValue());
 
 			}
 		}
 		
+		log.debug("Userinfo flow finished. JSON returned");
 		return userinfo;
 	}
 
@@ -108,85 +105,95 @@ public class OIDCManagerBlImpl implements OIDCManagerBl {
 	 * @param at validated access_token
 	 * @return Part of a response stored in {@link IntrospectionResponse} object
 	 * 
-	 * @throws IOException while storing response from {@link InputStreamReader} 
-	 * @throws JSONException while transforming String into {@link JSONObject}
-	 * @throws InvalidJwtException when token is invalid
+	 * @throws InternalErrorException while storing response from {@link InputStreamReader} or 
+	 * while transforming String into {@link JSONObject}
+	 * @throws InvalidTokenException when token is invalid
 	 */
-	private IntrospectionResponse introspectToken(String at) throws IOException, JSONException, InvalidJwtException {
-		
-		// TODO move it somewhere else 
-		// get the discovery document
-		fetchDiscoveryDocument();
+	private IntrospectionResponse introspectToken(String at) throws InternalErrorException, InvalidTokenException {
 
-//		================================================================================================================
-//		MOCK THE DISCOVERY DOCUMENT
-//		discoveryDocument = new JSONObject(DISCOVERY_DOCUMENT_MOCK);
-//		================================================================================================================
+		URL introspectionEndpoint;
+		IntrospectionResponse response;
+		try {
+			introspectionEndpoint = new URL(discoveryDocument.getString("introspection_endpoint") + "?token=" + at);
 		
-		URL introspectionEndpoint = new URL(discoveryDocument.getString("introspection_endpoint") + "?token=" + at);
-		URLConnection urlConnection = introspectionEndpoint.openConnection();
-		
-//		============================================================================================================
-//		CLIENT SECRET
-//		TODO move this into config file
-		String client_id = "test-page";
-		String client_secret = "tajnasprava";
-		String enc = client_id + ":" + client_secret;
-		enc = Base64.encodeBase64String(enc.getBytes());
-		// java bug
-		enc = enc.replaceAll("\n", "");
-//		============================================================================================================
-		
-		urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-		urlConnection.setRequestProperty("Authorization", "Basic " + enc);
-		InputStream is = urlConnection.getInputStream();
-		InputStreamReader isr = new InputStreamReader(is);
+			URLConnection urlConnection = introspectionEndpoint.openConnection();
+			
+	//		======================================== CLIENT SECRET =========================================================
+			String client_id = BeansUtils.getPropertyFromCustomConfiguration("oidc-clients.properties", "test.client_id");
+			String client_secret = BeansUtils.getPropertyFromCustomConfiguration("oidc-clients.properties", "test.secret");
+			
+			String enc = client_id + ":" + client_secret;
+			enc = Base64.encodeBase64String(enc.getBytes());
+			// java bug
+			enc = enc.replaceAll("\n", "");
+	//		================================================================================================================
+			
+			urlConnection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+			urlConnection.setRequestProperty("Authorization", "Basic " + enc);
+			InputStream is = urlConnection.getInputStream();
+			InputStreamReader isr = new InputStreamReader(is);
+	
+			JsonFactory f = new JsonFactory();
+			JsonParser jp = f.createJsonParser(isr);
+			jp.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, true);
+			
+			ObjectMapper mapper = new ObjectMapper();
+			response = mapper.readValue(jp, IntrospectionResponse.class);
+	
+			// parse and validate token
+			if (!response.isActive()) {
+				log.error("Token is not valid.");
+				throw new InvalidTokenException("Token in not valid.");
+			}
+			if (!response.getScope().contains("openid")) {
+				log.error("Openid scope is missing.");
+				throw new InvalidTokenException("Openid scope is missing.");
+			}
+			if (!response.getClient_id().equals(client_id)) {
+				log.error("Client_ids do not match.");
+				throw new InvalidTokenException("Client_ids do not match.");
+			}
+			if (response.getSub() <= 0) {
+				log.error("Invalid sub.");
+				throw new InvalidTokenException("Invalid sub.");
+			}
+			
+		} catch (JSONException | IOException e) {
+			throw new InternalErrorException(e);
+		}
 
-		JsonFactory f = new JsonFactory();
-		JsonParser jp = f.createJsonParser(isr);
-		jp.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, true);
-		
-		ObjectMapper mapper = new ObjectMapper();
-		IntrospectionResponse response = mapper.readValue(jp, IntrospectionResponse.class);
-
-		// parse and validate token
-		if (!response.isActive()) {
-			throw new InvalidJwtException("Token in not valid.");
-		}
-		if (!response.getScope().contains("openid")) {
-			throw new InvalidJwtException("Openid scope is missing.");
-		}
-		if (!response.getClient_id().equals(client_id)) {
-			throw new InvalidJwtException("Client_ids do not match.");
-		}
-		if (response.getSub() <= 0) {
-			throw new InvalidJwtException("Invalid sub.");
-		}
-		
+		log.debug("Token is valid.");
 		return response;
 	}
 
 	/**
 	 * Fetch the discovery document from OIDC server and store it inside the manager.
 	 * 
-	 * @throws JSONException while transforming String into {@link JSONObject}
-	 * @throws IOException while storing response from {@link InputStreamReader} 
+	 * @throws InternalErrorException while transforming String into {@link JSONObject} or while storing 
+	 * response from {@link InputStreamReader}
 	 */
-	private void fetchDiscoveryDocument() throws JSONException, IOException {
-		URL url = new URL(DISCOVERY_URL);
-		URLConnection urlConnection = url.openConnection();
+	private void fetchDiscoveryDocument() throws InternalErrorException {
+		URL url;
+		try {
+			url = new URL(DISCOVERY_URL);
 		
-		InputStream is = urlConnection.getInputStream();
-		InputStreamReader isr = new InputStreamReader(is);
+			URLConnection urlConnection = url.openConnection();
+			
+			InputStream is = urlConnection.getInputStream();
+			InputStreamReader isr = new InputStreamReader(is);
+	
+			int numCharsRead;
+			char[] charArray = new char[1024];
+			StringBuilder sb = new StringBuilder(2048);
+			while ((numCharsRead = isr.read(charArray)) > 0) {
+				sb.append(charArray, 0, numCharsRead);
+			}
 
-		int numCharsRead;
-		char[] charArray = new char[1024];
-		StringBuilder sb = new StringBuilder(2048);
-		while ((numCharsRead = isr.read(charArray)) > 0) {
-			sb.append(charArray, 0, numCharsRead);
+			discoveryDocument = new JSONObject(sb.toString());
+			log.debug("Successfully obtained discovery document.");
+		} catch (IOException | JSONException e) {
+			throw new InternalErrorException(e);
 		}
-		
-		discoveryDocument = new JSONObject(sb.toString());
 	}
 	
 	public void setPerunBl(PerunBl perunBl) {
